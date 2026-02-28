@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bank PDF to Tally Excel</title>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --card: #ffffff;
+      --line: #d5deea;
+      --text: #1a2433;
+      --muted: #5d6a7e;
+      --primary: #0b6bcb;
+      --danger: #bb2d3b;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 0% 0%, #e5f0ff 0%, transparent 34%),
+        radial-gradient(circle at 100% 100%, #dcecf9 0%, transparent 30%),
+        var(--bg);
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 360px minmax(0, 1fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: 0 10px 28px rgba(18, 35, 64, 0.06);
+    }
+
+    .left {
+      padding: 20px;
+      position: sticky;
+      top: 16px;
+    }
+
+    .brand {
+      font-size: 21px;
+      font-weight: 700;
+      margin: 0 0 8px;
+    }
+
+    .sub {
+      margin: 0 0 20px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .field-label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #334056;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .file-wrap {
+      border: 1px dashed #adc0da;
+      border-radius: 10px;
+      padding: 16px;
+      background: #f9fbff;
+    }
+
+    input[type="file"] {
+      width: 100%;
+      font-size: 14px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 10px;
+      padding: 11px 14px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      flex: 1;
+    }
+
+    #preview-btn {
+      background: #e8f2ff;
+      color: #0a4f96;
+    }
+
+    #convert-btn {
+      background: var(--primary);
+      color: #ffffff;
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .status {
+      margin-top: 14px;
+      font-size: 13px;
+      color: var(--muted);
+      min-height: 20px;
+    }
+
+    .status.error { color: var(--danger); }
+    .status.ok { color: #1d7a44; }
+
+    .right {
+      padding: 0;
+      overflow: hidden;
+    }
+
+    .preview-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      border-bottom: 1px solid var(--line);
+      padding: 16px 18px;
+      background: #fbfdff;
+    }
+
+    .preview-title {
+      margin: 0;
+      font-size: 17px;
+      font-weight: 700;
+    }
+
+    .preview-meta {
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .table-wrap {
+      max-height: calc(100vh - 190px);
+      overflow: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 760px;
+    }
+
+    th, td {
+      border-bottom: 1px solid #edf2f8;
+      padding: 10px 12px;
+      text-align: left;
+      font-size: 13px;
+      vertical-align: top;
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: #f4f9ff;
+      border-bottom: 1px solid var(--line);
+      color: #243246;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+    .empty {
+      padding: 30px 18px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .pager {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      border-top: 1px solid var(--line);
+      padding: 12px 16px;
+      background: #fbfdff;
+    }
+
+    .pager button {
+      flex: 0 0 auto;
+      min-width: 92px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      background: #e8f2ff;
+      color: #0a4f96;
+    }
+
+    .page-info {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    @media (max-width: 980px) {
+      body { padding: 14px; }
+      .container { grid-template-columns: 1fr; }
+      .left { position: static; }
+      .table-wrap { max-height: 55vh; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <aside class="panel left">
+      <h1 class="brand">Bank PDF to Tally Excel</h1>
+      <p class="sub">Supports large statements. Preview loads in pages for smooth performance, then export full Excel.</p>
+
+      <label class="field-label" for="pdf-file">Statement PDF</label>
+      <div class="file-wrap">
+        <input id="pdf-file" type="file" name="file" accept="application/pdf" />
+      </div>
+
+      <div class="actions">
+        <button id="preview-btn" type="button">Preview</button>
+        <button id="convert-btn" type="button" disabled>Convert</button>
+      </div>
+
+      <div id="status" class="status">Choose a PDF to start.</div>
+    </aside>
+
+    <section class="panel right">
+      <div class="preview-head">
+        <h2 class="preview-title">Preview</h2>
+        <div id="preview-meta" class="preview-meta">0 rows</div>
+      </div>
+      <div class="table-wrap">
+        <table id="preview-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Particulars</th>
+              <th>Debit</th>
+              <th>Credit</th>
+              <th>Balance</th>
+            </tr>
+          </thead>
+          <tbody id="preview-body"></tbody>
+        </table>
+        <div id="empty-state" class="empty">No data yet. Click Preview after selecting a PDF.</div>
+      </div>
+      <div class="pager">
+        <button id="prev-page" type="button" disabled>Prev</button>
+        <div id="page-info" class="page-info">Page 0 of 0</div>
+        <button id="next-page" type="button" disabled>Next</button>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const PAGE_SIZE = 200;
+
+    const fileInput = document.getElementById("pdf-file");
+    const previewBtn = document.getElementById("preview-btn");
+    const convertBtn = document.getElementById("convert-btn");
+    const prevPageBtn = document.getElementById("prev-page");
+    const nextPageBtn = document.getElementById("next-page");
+    const pageInfoEl = document.getElementById("page-info");
+    const statusEl = document.getElementById("status");
+    const previewBody = document.getElementById("preview-body");
+    const emptyState = document.getElementById("empty-state");
+    const previewMeta = document.getElementById("preview-meta");
+
+    let activeSessionId = null;
+    let activeFileName = null;
+    let totalRows = 0;
+    let currentOffset = 0;
+
+    function setStatus(message, tone) {
+      statusEl.textContent = message;
+      statusEl.className = "status" + (tone ? " " + tone : "");
+    }
+
+    function selectedFile() {
+      if (!fileInput.files || fileInput.files.length === 0) {
+        setStatus("Please select a PDF file first.", "error");
+        return null;
+      }
+      return fileInput.files[0];
+    }
+
+    function resetSessionState() {
+      activeSessionId = null;
+      activeFileName = null;
+      totalRows = 0;
+      currentOffset = 0;
+      convertBtn.disabled = true;
+      prevPageBtn.disabled = true;
+      nextPageBtn.disabled = true;
+      pageInfoEl.textContent = "Page 0 of 0";
+      previewMeta.textContent = "0 rows";
+    }
+
+    function clearPreview(message) {
+      previewBody.innerHTML = "";
+      emptyState.textContent = message || "No data yet. Click Preview after selecting a PDF.";
+      emptyState.style.display = "block";
+    }
+
+    function renderPreviewRows(rows) {
+      previewBody.innerHTML = "";
+      if (!rows || rows.length === 0) {
+        clearPreview("No rows were parsed from this PDF.");
+        return;
+      }
+
+      emptyState.style.display = "none";
+      for (const row of rows) {
+        const tr = document.createElement("tr");
+        const cells = [row.Date || "", row.Particulars || "", row.Debit || "", row.Credit || "", row.Balance || ""];
+        cells.forEach((value, idx) => {
+          const td = document.createElement("td");
+          td.textContent = value;
+          if (idx >= 2) td.className = "num";
+          tr.appendChild(td);
+        });
+        previewBody.appendChild(tr);
+      }
+    }
+
+    function updatePager() {
+      const pageNo = totalRows === 0 ? 0 : Math.floor(currentOffset / PAGE_SIZE) + 1;
+      const totalPages = totalRows === 0 ? 0 : Math.ceil(totalRows / PAGE_SIZE);
+      pageInfoEl.textContent = `Page ${pageNo} of ${totalPages}`;
+      prevPageBtn.disabled = !activeSessionId || currentOffset === 0;
+      nextPageBtn.disabled = !activeSessionId || (currentOffset + PAGE_SIZE >= totalRows);
+    }
+
+    async function callJson(url, options) {
+      const response = await fetch(url, options);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.detail || "Request failed.");
+      }
+      return data;
+    }
+
+    async function loadPage(offset) {
+      if (!activeSessionId) return;
+      setStatus(`Loading preview rows ${offset + 1} to ${Math.min(offset + PAGE_SIZE, totalRows)}...`);
+      const data = await callJson(`/preview/${activeSessionId}?offset=${offset}&limit=${PAGE_SIZE}`);
+      currentOffset = data.offset;
+      renderPreviewRows(data.rows || []);
+      updatePager();
+      setStatus(`Preview loaded (${totalRows} rows total).`, "ok");
+    }
+
+    async function analyzeAndLoadFirstPage() {
+      const file = selectedFile();
+      if (!file) return;
+
+      previewBtn.disabled = true;
+      convertBtn.disabled = true;
+      prevPageBtn.disabled = true;
+      nextPageBtn.disabled = true;
+      setStatus("Analyzing statement. This may take a while for 100+ pages...");
+
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        const data = await callJson("/analyze", { method: "POST", body: formData });
+
+        activeSessionId = data.session_id;
+        activeFileName = data.file_name;
+        totalRows = data.total_rows || 0;
+        currentOffset = 0;
+        previewMeta.textContent = `${totalRows} rows`;
+
+        convertBtn.disabled = totalRows === 0;
+        await loadPage(0);
+      } catch (error) {
+        resetSessionState();
+        clearPreview("Unable to preview this PDF.");
+        setStatus(error.message || "Preview failed.", "error");
+      } finally {
+        previewBtn.disabled = false;
+      }
+    }
+
+    async function exportFromSession() {
+      if (!activeSessionId) {
+        setStatus("Run Preview first to analyze and cache this file.", "error");
+        return;
+      }
+
+      convertBtn.disabled = true;
+      previewBtn.disabled = true;
+      setStatus("Preparing Excel download...");
+
+      try {
+        const response = await fetch(`/export/${activeSessionId}`);
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.detail || "Export failed.");
+        }
+
+        const blob = await response.blob();
+        const disposition = response.headers.get("content-disposition") || "";
+        const match = disposition.match(/filename=\"?([^\";]+)\"?/i);
+        const fileName = match ? match[1] : (activeFileName ? activeFileName.replace(/\.pdf$/i, ".xlsx") : "statement.xlsx");
+
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+
+        setStatus("Excel downloaded successfully.", "ok");
+      } catch (error) {
+        setStatus(error.message || "Export failed.", "error");
+      } finally {
+        previewBtn.disabled = false;
+        convertBtn.disabled = !activeSessionId;
+      }
+    }
+
+    previewBtn.addEventListener("click", analyzeAndLoadFirstPage);
+    convertBtn.addEventListener("click", exportFromSession);
+
+    prevPageBtn.addEventListener("click", async () => {
+      if (currentOffset === 0) return;
+      try {
+        await loadPage(Math.max(0, currentOffset - PAGE_SIZE));
+      } catch (error) {
+        setStatus(error.message || "Failed to load previous page.", "error");
+      }
+    });
+
+    nextPageBtn.addEventListener("click", async () => {
+      if (currentOffset + PAGE_SIZE >= totalRows) return;
+      try {
+        await loadPage(currentOffset + PAGE_SIZE);
+      } catch (error) {
+        setStatus(error.message || "Failed to load next page.", "error");
+      }
+    });
+
+    fileInput.addEventListener("change", () => {
+      resetSessionState();
+      clearPreview();
+      if (fileInput.files && fileInput.files.length > 0) {
+        setStatus("File selected. Click Preview to analyze and load first 200 rows.");
+      } else {
+        setStatus("Choose a PDF to start.");
+      }
+    });
+  </script>
+</body>
+</html>
