@@ -37,7 +37,19 @@ class SbiPdfParser(BankPdfParser):
 
     def can_parse(self, raw_rows: Sequence[RawRowLike]) -> bool:
         joined = " ".join(_compact_text(row).lower() for row in raw_rows[:60])
-        return "state bank of india" in joined
+        squashed = re.sub(r"[^a-z0-9]+", "", joined)
+        if "statebankofindia" in squashed:
+            return True
+        if "hdfcbank" in squashed:
+            return False
+
+        has_columns = (
+            ("withdrawal" in joined or "debit" in joined)
+            and ("deposit" in joined or "credit" in joined)
+            and "balance" in joined
+        )
+        looks_like_hdfc = "valuedt" in squashed or "withdrawalamt" in squashed or "chqrefno" in squashed
+        return has_columns and not looks_like_hdfc
 
     def parse(self, raw_rows: Sequence[RawRowLike]) -> list[NormalizedRow]:
         if not raw_rows:

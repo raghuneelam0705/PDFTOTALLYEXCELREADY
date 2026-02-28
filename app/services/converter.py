@@ -17,34 +17,53 @@ PARSER_REGISTRY.register(SbiPdfParser)
 
 def parse_pdf_records(pdf_bytes: bytes) -> tuple[list[dict[str, str]], BankPdfParser]:
     raw_rows = extract_raw_rows_from_pdf(pdf_bytes)
-    parser = PARSER_REGISTRY.detect(raw_rows)
-    if parser is None:
-        supported = ", ".join(PARSER_REGISTRY.list_bank_codes())
-        raise ValueError(f"Unsupported bank statement format. Supported banks: {supported}")
+    candidate_parsers: list[BankPdfParser] = []
+    detected = PARSER_REGISTRY.detect(raw_rows)
+    if detected is not None:
+        candidate_parsers.append(detected)
 
-    normalized_rows = parser.parse(raw_rows)
+    for parser_type in PARSER_REGISTRY.list_parser_types():
+        if detected is not None and parser_type.bank_code == detected.bank_code:
+            continue
+        candidate_parsers.append(parser_type())
 
-    mismatches = validate_running_balance(normalized_rows)
-    if mismatches:
-        details = "; ".join(mismatch.to_message() for mismatch in mismatches)
-        raise ValueError(f"Running balance validation failed: {details}")
+    parse_errors: list[str] = []
+    for parser in candidate_parsers:
+        try:
+            normalized_rows = parser.parse(raw_rows)
+        except ValueError as exc:
+            parse_errors.append(f"{parser.bank_code}: {exc}")
+            continue
 
-    records = [row.to_record() for row in normalized_rows]
-    if not records:
-        return []
+        if not normalized_rows:
+            continue
 
-    cleaned: list[dict[str, str]] = []
-    for record in records:
-        cleaned.append(
-            {
-                "Date": str(record.get("Date", "")).strip(),
-                "Particulars": str(record.get("Particulars", "")).strip(),
-                "Debit": str(record.get("Debit", "")).replace(",", "").strip(),
-                "Credit": str(record.get("Credit", "")).replace(",", "").strip(),
-                "Balance": str(record.get("Balance", "")).replace(",", "").strip(),
-            }
+        mismatches = validate_running_balance(normalized_rows)
+        if mismatches:
+            parse_errors.append(f"{parser.bank_code}: running balance validation failed")
+            continue
+
+        records = [row.to_record() for row in normalized_rows]
+        cleaned: list[dict[str, str]] = []
+        for record in records:
+            cleaned.append(
+                {
+                    "Date": str(record.get("Date", "")).strip(),
+                    "Particulars": str(record.get("Particulars", "")).strip(),
+                    "Debit": str(record.get("Debit", "")).replace(",", "").strip(),
+                    "Credit": str(record.get("Credit", "")).replace(",", "").strip(),
+                    "Balance": str(record.get("Balance", "")).replace(",", "").strip(),
+                }
+            )
+        return cleaned, parser
+
+    supported = ", ".join(PARSER_REGISTRY.list_bank_codes())
+    if parse_errors:
+        raise ValueError(
+            f"Unsupported bank statement format. Supported banks: {supported}. "
+            f"Parser attempts: {' | '.join(parse_errors[:3])}"
         )
-    return cleaned, parser
+    raise ValueError(f"Unsupported bank statement format. Supported banks: {supported}")
 
 
 def pdf_to_tally_records(pdf_bytes: bytes) -> list[dict[str, str]]:

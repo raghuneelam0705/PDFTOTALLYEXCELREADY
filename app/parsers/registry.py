@@ -25,10 +25,12 @@ class ParserRegistry:
     def list_bank_codes(self) -> list[str]:
         return sorted(self._parsers.keys())
 
+    def list_parser_types(self) -> list[type[BankPdfParser]]:
+        return list(self._parsers.values())
+
     def detect(self, raw_rows: Sequence[RawRowLike]) -> BankPdfParser | None:
         for parser_cls in self._parsers.values():
             parser = parser_cls()
             if parser.can_parse(raw_rows):
                 return parser
         return None
-
